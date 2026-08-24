@@ -7,8 +7,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -104,17 +102,28 @@ public class ESPSearch {
 
     public void stopScan() {
         isScanning = false;
-        if (executor != null && !executor.isShutdown()) {
-            executor.shutdownNow();
-            try {
-                executor.awaitTermination(1, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {}
+        final ExecutorService ex = executor;
+        if (ex != null && !ex.isShutdown()) {
+            // Немедленно прерываем задачи (не блокирует вызывающий поток).
+            ex.shutdownNow();
+            // Ожидание завершения выносим в отдельный daemon-поток, иначе при
+            // вызове stopScan() из воркера пула поток ждал бы завершения пула,
+            // в котором сам работает (а на UI-потоке это грозило бы ANR).
+            Thread awaiter = new Thread(() -> {
+                try {
+                    ex.awaitTermination(1, TimeUnit.SECONDS);
+                } catch (InterruptedException ignored) {}
+            }, "ESPSearch-stop");
+            awaiter.setDaemon(true);
+            awaiter.start();
         }
     }
 
     /**
      * Проверяет, отвечает ли устройство по порту 80 на заданный URL.
-     * @return true, если ответ 200 OK и (опционально) тело содержит ожидаемые данные
+     * На этапе поиска аутентификация не требуется: устройство, закрытое
+     * Basic Auth, вернёт 401 Unauthorized — этого достаточно, чтобы опознать его.
+     * @return true, если по адресу отвечает наше устройство (код 401)
      */
     private boolean checkDevice(String ip) {
         HttpURLConnection conn = null;
@@ -127,19 +136,9 @@ public class ESPSearch {
             conn.connect();
 
             int responseCode = conn.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                // Опционально: прочитать ответ и проверить его содержимое
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-                // Например, проверить наличие строки "ESP32" или "подогрев"
-                if (response.toString().contains("ESP32")) { // измените под своё
-                    Log.i(TAG, "Найдено устройство: " + ip);
-                    return true;
-                }
+            if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                Log.i(TAG, "Найдено устройство (401 Unauthorized): " + ip);
+                return true;
             }
         } catch (Exception e) {
             // таймаут или ошибка соединения — просто игнорируем
@@ -237,6 +236,4 @@ public class ESPSearch {
         void onScanFinished(String errorMessage);
         void onScanError(String message);
     }
-
-
 }

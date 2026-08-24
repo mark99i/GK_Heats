@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.2"
-okhttp = "5.5.0"
+okhttp = "5.4.0"
 activity = "1.13.0"
 #toasty = "1.5.2"
 jbbp = "3.0.3"
