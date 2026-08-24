@@ -1,0 +1,15 @@
+[versions]
+agp = "8.13.2"
+okhttp = "5.5.0"
+activity = "1.13.0"
+#toasty = "1.5.2"
+jbbp = "3.0.3"
+
+[libraries]
+androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
+#toasty = { module = "com.github.GrenderG:Toasty", version.ref = "toasty" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+jbbp = { module = "com.igormaznitsa:jbbp", version.ref = "jbbp" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
