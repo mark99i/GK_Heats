@@ -16,7 +16,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 public class WebViewActivity extends Activity {
-    private final static String TAG = "WebView";
+    private final static String TAG = "GKH_WebView";
 
     private String host;
     private String username;

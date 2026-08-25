@@ -16,7 +16,7 @@ import java.util.List;
 
 @SuppressWarnings("SpellCheckingInspection")
 public class LunarisAppMessenger extends Handler {
-    private static final String TAG = "LAppMessenger";
+    private static final String TAG = "GKH_LAppMessenger";
 
     public final static int CommandTXHello = 10000;
     public final static int CommandTXNotifyOfHeatStateChanged = 10001;
@@ -78,7 +78,7 @@ public class LunarisAppMessenger extends Handler {
             messenger.send(message);
             return true;
         } catch (RemoteException e) {
-            e.getStackTrace();
+            e.printStackTrace();
             return false;
         }
     }
@@ -98,7 +98,7 @@ public class LunarisAppMessenger extends Handler {
             messenger.send(message);
             return true;
         } catch (RemoteException e) {
-            e.getStackTrace();
+            e.printStackTrace();
             return false;
         }
     }

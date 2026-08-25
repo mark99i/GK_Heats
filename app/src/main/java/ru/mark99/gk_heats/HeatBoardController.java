@@ -17,28 +17,23 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import ru.mark99.gk_heats.proto.HeatMode;
-import ru.mark99.gk_heats.proto.HeatsClient;
-import ru.mark99.gk_heats.proto.Seat;
-import ru.mark99.gk_heats.proto.SeatStatus;
-
 public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     private String TAG = "GKH_HeatBoardCtrl";
     private final int row;
 
     public ESPSearch espSearch;
-    public HeatsClient heatsClient;
+    public GKClient heatsClient;
     public LunarisAppMessenger lunarisAppMessenger;
     public Handler handler;
 
-    public volatile String controllerState;
+    public volatile String controllerState = "disabled";
 
     public String login;
     public String password;
     public String host;
 
-    public SeatStatus left;
-    public SeatStatus right;
+    public int left;
+    public int right;
 
     public HeatBoardController(int row) {
         this.row = row;
@@ -55,13 +50,13 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
         Log.d(TAG, "reloading config");
         var p = PreferenceManager.getDefaultSharedPreferences(MainService.context);
 
-        if (!p.getBoolean("board" + row + "_enabled", false) && lunarisAppMessenger != null) {
+        if (!p.getBoolean("board" + row + "_enabled", false)) {
             stop();
             Log.d(TAG, "board disabled");
             return;
         }
 
-        if (p.getBoolean("board" + row + "_enabled", false) && lunarisAppMessenger == null) {
+        if (p.getBoolean("board" + row + "_enabled", false)) {
             Log.d(TAG, "board enabled");
             stop();
             connectToLunarisApp();
@@ -72,95 +67,107 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
         host = null;
     }
 
+    public void setControllerState(String controllerState) {
+        Log.d(TAG, "state changed to " + controllerState);
+        this.controllerState = controllerState;
+    }
+
     void stop() {
         if (espSearch != null) {
             espSearch.stopScan();
         }
         heatsClient = null;
-        left = null;
-        right = null;
+        left = 0;
+        right = 0;
         host = null;
-        controllerState = "disabled";
+        setControllerState("disabled");
         if (lunarisAppMessenger != null) {
+            lunarisAppMessenger.onDisconnect();
             MainService.context.unbindService(lunarisAppConnection);
+            lunarisAppMessenger = null;
         }
         handler.removeCallbacksAndMessages(null);
     }
 
     void searchEsp() {
-        controllerState = "searching_esp";
+        setControllerState("searching_esp");
         espSearch = new ESPSearch(MainService.context, this);
         espSearch.startScan();
     }
 
     void loadFirstState() {
-        heatsClient = new HeatsClient(host, login, password);
+        heatsClient = new GKClient(host, login, password);
 
         try {
-            left = heatsClient.status(Seat.LEFT);
-            right = heatsClient.status(Seat.RIGHT);
+            var state = heatsClient.fetchStatus();
+            left = state.left;
+            right = state.right;
         } catch (IOException e) {
-            left = null;
-            right = null;
-            controllerState = "error_on_loading_first_state";
+            left = 0;
+            right = 0;
+            setControllerState("error_on_loading_first_state");
             lunarisAppMessenger.notifyOfConnectionChanged(LunarisAppMessenger.ConnectionStateError);
             Log.e(TAG, "exception on loading first state");
-            e.getStackTrace();
+            e.printStackTrace();
+            handler.postDelayed(this::searchEsp, 1000);
             return;
         }
-        controllerState = "working";
+        setControllerState("working");
         lunarisAppMessenger.notifyOfConnectionChanged(LunarisAppMessenger.ConnectionStateConnected);
 
         lunarisAppMessenger.notifyOfSeatHeatChanged(
                 row == 1 ? 1 : 16,
-                left.invertedInt()
+                left
         );
 
         lunarisAppMessenger.notifyOfSeatHeatChanged(
                 row == 1 ? 4 : 64,
-                right.invertedInt()
+                right
         );
 
         handler.postDelayed(this::periodicallyUpdateState, 500);
     }
 
     void periodicallyUpdateState() {
-        SeatStatus last_left;
-        SeatStatus last_right;
+        int last_left;
+        int last_right;
         try {
-            last_left = heatsClient.status(Seat.LEFT);
-            last_right = heatsClient.status(Seat.RIGHT);
+            var state = heatsClient.fetchStatus();
+            last_left = state.left;
+            last_right = state.right;
         } catch (IOException e) {
-            controllerState = "error_on_refresh_state";
+            setControllerState("error_on_refresh_state");
             lunarisAppMessenger.notifyOfConnectionChanged(LunarisAppMessenger.ConnectionStateError);
             Log.e(TAG, "exception on refresh state");
-            e.getStackTrace();
-            handler.postDelayed(this::periodicallyUpdateState, 2000);
+            e.printStackTrace();
+            handler.postDelayed(this::periodicallyUpdateState, 1000);
             return;
         }
 
         if (!Objects.equals("working", controllerState)) {
             lunarisAppMessenger.notifyOfConnectionChanged(LunarisAppMessenger.ConnectionStateConnected);
-            controllerState = "working";
+            setControllerState("working");
         }
 
-        if (!Objects.equals(left, last_left)) {
-            Log.d(TAG, "Updated state of left: currentValue=" + right.invertedInt());
+        if (left != last_left) {
+            Log.d(TAG, "Updated state of left: currentValue=" + left);
             lunarisAppMessenger.notifyOfSeatHeatChanged(
                     row == 1 ? 1 : 16,
-                    left.invertedInt()
+                    last_left
             );
+            left = last_left;
         }
 
-        if (!Objects.equals(right, last_right)) {
-            Log.d(TAG, "Updated state of right: currentValue=" + right.invertedInt());
+        if (right != last_right) {
+            Log.d(TAG, "Updated state of right: currentValue=" + right);
             lunarisAppMessenger.notifyOfSeatHeatChanged(
                     row == 1 ? 4 : 64,
-                    right.invertedInt()
+                    last_right
             );
+            right = last_right;
         }
 
-        handler.postDelayed(this::periodicallyUpdateState, 500);
+        handler.postDelayed(this::periodicallyUpdateState, 300);
     }
 
     private final LunarisAppMessenger.CommandListener commandListener = (seatPosition, seatMode) -> {
@@ -173,12 +180,12 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
             Log.d(TAG, "Changing " + seatPosition + " to " + seatMode);
             try {
                 heatsClient.setMode(
-                        seatPosition == 1 || seatPosition == 16 ? Seat.LEFT: Seat.RIGHT,
-                        HeatMode.fromInvertedInt(seatMode)
+                        seatPosition == 1 || seatPosition == 16 ? 1: 2,
+                        seatMode
                 );
             } catch (IOException e) {
                 Log.e(TAG, "exception on changing state");
-                e.getStackTrace();
+                e.printStackTrace();
             }
         });
     };
@@ -204,7 +211,7 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     private void connectToLunarisApp() {
         Log.d(TAG, "connecting to lunarisapp");
 
-        controllerState = "connecting_lapp";
+        setControllerState("connecting_lapp");
 
         Intent intent = new Intent();
         intent.setComponent(new ComponentName(
@@ -223,18 +230,20 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     @Override
     public void onDeviceFound(String ipAddress) {
         host = ipAddress;
-        controllerState = "pulling_first_state";
+        setControllerState("pulling_first_state");
         handler.post(this::loadFirstState);
     }
 
     @Override
     public void onScanFinished(String errorMessage) {
-        controllerState = "board_not_found";
+        setControllerState("board_not_found");
+        handler.postDelayed(this::searchEsp, 2000);
     }
 
     @Override
     public void onScanError(String message) {
-        controllerState = "board_not_found";
+        setControllerState("board_not_found");
+        handler.postDelayed(this::searchEsp, 2000);
     }
 
     @NotNull
@@ -245,19 +254,19 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
             case "board_not_found" -> "Плата не найдена";
             case "pulling_first_state" -> "Получение первого состояния";
             case "connecting_lapp" -> "Подключение к LunarisApp";
+            case "error_on_refresh_state" -> "Ошибка обновления статуса";
+            case "error_on_loading_first_state" -> "Ошибка получения первого состояния";
             case "working" -> "Работает";
             case "disabled" -> "Отключено";
-            case null, default -> controllerState;
+            case null -> "Неизвестно";
+            default -> controllerState;
         };
 
         return String.join("\n", List.of(
                 state,
                 "IP: " + host,
                 "LApp: " + (lunarisAppMessenger != null ? "Подключен" : "Не подключен"),
-                "Последние данные: L:" +
-                        (left == null ? "-" : left.invertedInt()) +
-                        " R:" + (right == null ? "-" : right.invertedInt())
-        ));
+                "Последние данные: L:" + left + " R:" + right)
+        );
     }
-
 }

@@ -32,7 +32,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     @SuppressWarnings("DataFlowIssue")
     public static class SettingsFragment extends PreferenceFragmentCompat {
-        private static final String TAG = "SettingsFragment";
+        private static final String TAG = "GKH_SettingsFragment";
 
         Preference stateService;
         Preference board1State;
@@ -60,6 +60,7 @@ public class SettingsActivity extends AppCompatActivity {
 
             stateService.setOnPreferenceClickListener(preference -> {
                 if (MainService.context == null) {
+                    Log.d(TAG, "starting service");
                     requireActivity().startForegroundService(new Intent(
                             requireActivity(), MainService.class
                     ));
@@ -72,6 +73,8 @@ public class SettingsActivity extends AppCompatActivity {
                 handler.postDelayed(() -> MainService.context.onConfigurationChanged(), 100);
                 return true;
             });
+
+            Log.d(TAG, "opened");
         }
 
         @Override
@@ -94,11 +97,10 @@ public class SettingsActivity extends AppCompatActivity {
             if (MainService.context == null) {
                 board1State.setSummary("Сервис приложения не запущен");
                 board1OpenWeb.setEnabled(false);
-                return;
+            } else {
+                board1OpenWeb.setEnabled(MainService.context.board1.host != null);
+                board1State.setSummary(MainService.context.board1.toString());
             }
-
-            board1OpenWeb.setEnabled(MainService.context.board1.host != null);
-            board1State.setSummary(MainService.context.board1.toString());
             handler.postDelayed(this::reloadUi, 200);
         }
 
