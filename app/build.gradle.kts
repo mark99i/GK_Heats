@@ -41,8 +41,10 @@ android {
 }
 
 dependencies {
-//    implementation(libs.toasty)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.preference)
     implementation(libs.androidx.activity)
+    implementation(libs.material)
     implementation(libs.okhttp)
     implementation(libs.jbbp)
 }

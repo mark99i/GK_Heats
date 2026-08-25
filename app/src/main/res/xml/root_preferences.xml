@@ -1,0 +1,52 @@
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:title="Интеграция плат подогревов сидений @gkmikhalych в LunarisApp">
+
+    <PreferenceCategory app:title="Сервис приложения">
+
+        <Preference
+            app:key="state_service"
+            app:title="Состояние"
+            app:persistent="false"
+            />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Плата 1">
+        <Preference
+            app:key="board1_row"
+            app:title="Ряд сидений"
+            app:summary="Передний"
+            app:persistent="false"
+            />
+
+        <EditTextPreference
+            app:key="board1_login"
+            app:title="Имя пользователя / Логин"
+            app:useSimpleSummaryProvider="false"
+            />
+
+        <EditTextPreference
+            app:key="board1_password"
+            app:title="Пароль"
+            app:useSimpleSummaryProvider="false"
+            />
+
+        <SwitchPreferenceCompat
+            app:key="board1_enabled"
+            app:title="Включить передачу в LunarisApp"
+            />
+
+        <Preference
+            app:key="board1_state"
+            app:title="Состояние"
+            app:persistent="false"
+            />
+
+        <Preference
+            app:key="board1_open_web"
+            app:title="Открыть настройки платы"
+            app:enabled="false"
+            />
+    </PreferenceCategory>
+
+</PreferenceScreen>
