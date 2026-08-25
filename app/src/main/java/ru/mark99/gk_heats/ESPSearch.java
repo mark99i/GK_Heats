@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ESPSearch {
     private static final String TAG = "ESPSearch";
-    private static final int SCAN_TIMEOUT_MS = 500;        // таймаут соединения
+    private static final int SCAN_TIMEOUT_MS = 300;        // таймаут соединения
     private static final int THREAD_COUNT = 50;            // количество параллельных запросов
     private static final String TARGET_URL_PATH = "/GP_ping";     // изменяйте под свой URL, например "/api/version"
 
