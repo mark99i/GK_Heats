@@ -13,7 +13,8 @@ android {
     defaultConfig {
         applicationId = "ru.mark99.gk_heats"
         minSdk = 28
-        targetSdk = 36
+        //noinspection ExpiredTargetSdkVersion
+        targetSdk = 28
         versionCode = 1
         versionName = "1.0"
 
