@@ -63,6 +63,24 @@ public class WebViewActivity extends Activity {
         webView.loadUrl("http://" + host + "/");
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        webView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        webView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        webView.destroy();
+        super.onDestroy();
+    }
+
     class MyWebViewClient extends WebViewClient {
         @Override
         public void onReceivedHttpAuthRequest(

@@ -22,8 +22,8 @@ import java.util.concurrent.TimeUnit;
 
 public class ESPSearch {
     private static final String TAG = "GKH_ESPSearch";
-    private static final int SCAN_TIMEOUT_MS = 300;        // таймаут соединения
-    private static final int THREAD_COUNT = 50;            // количество параллельных запросов
+    private static final int SCAN_TIMEOUT_MS = 500;        // таймаут соединения
+    private static final int THREAD_COUNT = 20;            // количество параллельных запросов
     private static final String TARGET_URL_PATH = "/GP_ping";     // изменяйте под свой URL, например "/api/version"
 
     private final Context context;
@@ -97,7 +97,7 @@ public class ESPSearch {
                 stopScan();
                 listener.onScanFinished("Ни одно устройство не ответило на порт 80 с ожидаемым URL");
             }
-        }, 15000);
+        }, 20000);
     }
 
     public void stopScan() {

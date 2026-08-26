@@ -73,6 +73,7 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     }
 
     void stop() {
+        handler.removeCallbacksAndMessages(null);
         if (espSearch != null) {
             espSearch.stopScan();
         }
@@ -86,7 +87,6 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
             MainService.context.unbindService(lunarisAppConnection);
             lunarisAppMessenger = null;
         }
-        handler.removeCallbacksAndMessages(null);
     }
 
     void searchEsp() {
@@ -109,7 +109,7 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
             lunarisAppMessenger.notifyOfConnectionChanged(LunarisAppMessenger.ConnectionStateError);
             Log.e(TAG, "exception on loading first state");
             e.printStackTrace();
-            handler.postDelayed(this::searchEsp, 1000);
+            handler.postDelayed(this::searchEsp, 5000);
             return;
         }
         setControllerState("working");
@@ -237,13 +237,13 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     @Override
     public void onScanFinished(String errorMessage) {
         setControllerState("board_not_found");
-        handler.postDelayed(this::searchEsp, 2000);
+        handler.postDelayed(this::searchEsp, 15000);
     }
 
     @Override
     public void onScanError(String message) {
         setControllerState("board_not_found");
-        handler.postDelayed(this::searchEsp, 2000);
+        handler.postDelayed(this::searchEsp, 15000);
     }
 
     @NotNull
@@ -251,7 +251,7 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     public String toString() {
         var state = switch (controllerState) {
             case "searching_esp" -> "Поиск платы в сети";
-            case "board_not_found" -> "Плата не найдена";
+            case "board_not_found" -> "Плата не найдена, повторное сканирование через ~15 секунд";
             case "pulling_first_state" -> "Получение первого состояния";
             case "connecting_lapp" -> "Подключение к LunarisApp";
             case "error_on_refresh_state" -> "Ошибка обновления статуса";

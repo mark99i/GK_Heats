@@ -4,11 +4,7 @@ plugins {
 
 android {
     namespace = "ru.mark99.gk_heats"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "ru.mark99.gk_heats"
