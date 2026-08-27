@@ -66,18 +66,21 @@ public class WebViewActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        webView.onResume();
+        if (webView != null)
+            webView.onResume();
     }
 
     @Override
     protected void onPause() {
-        webView.onPause();
+        if (webView != null)
+            webView.onPause();
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
-        webView.destroy();
+        if (webView != null)
+            webView.destroy();
         super.onDestroy();
     }
 

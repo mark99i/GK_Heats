@@ -7,6 +7,7 @@ import android.content.ServiceConnection;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.preference.PreferenceManager;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+@SuppressWarnings("CallToPrintStackTrace")
 public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     private String TAG = "GKH_HeatBoardCtrl";
     private final int row;
@@ -24,7 +26,9 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     public ESPSearch espSearch;
     public GKClient heatsClient;
     public LunarisAppMessenger lunarisAppMessenger;
+    private final HandlerThread handlerThread;
     public Handler handler;
+    volatile boolean isBound = false;
 
     public volatile String controllerState = "disabled";
 
@@ -41,7 +45,7 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
 
         Log.d(TAG, "init()");
 
-        HandlerThread handlerThread = new HandlerThread(TAG + "_b" + row);
+        handlerThread = new HandlerThread(TAG + "_b" + row);
         handlerThread.start();
         handler = new Handler(handlerThread.getLooper());
     }
@@ -51,14 +55,14 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
         var p = PreferenceManager.getDefaultSharedPreferences(MainService.context);
 
         if (!p.getBoolean("board" + row + "_enabled", false)) {
-            stop();
+            stop(false);
             Log.d(TAG, "board disabled");
             return;
         }
 
         if (p.getBoolean("board" + row + "_enabled", false)) {
             Log.d(TAG, "board enabled");
-            stop();
+            stop(false);
             connectToLunarisApp();
         }
 
@@ -72,8 +76,10 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
         this.controllerState = controllerState;
     }
 
-    void stop() {
+    void stop(boolean destroyApp) {
         handler.removeCallbacksAndMessages(null);
+        if (destroyApp)
+            handlerThread.quitSafely();
         if (espSearch != null) {
             espSearch.stopScan();
         }
@@ -84,8 +90,11 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
         setControllerState("disabled");
         if (lunarisAppMessenger != null) {
             lunarisAppMessenger.onDisconnect();
-            MainService.context.unbindService(lunarisAppConnection);
             lunarisAppMessenger = null;
+        }
+        if (isBound) {
+            MainService.context.unbindService(lunarisAppConnection);
+            isBound = false;
         }
     }
 
@@ -102,7 +111,9 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
             var state = heatsClient.fetchStatus();
             left = state.left;
             right = state.right;
+            if (lunarisAppMessenger == null) return;
         } catch (IOException e) {
+            if (lunarisAppMessenger == null) return;
             left = 0;
             right = 0;
             setControllerState("error_on_loading_first_state");
@@ -135,7 +146,9 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
             var state = heatsClient.fetchStatus();
             last_left = state.left;
             last_right = state.right;
+            if (lunarisAppMessenger == null) return;
         } catch (IOException e) {
+            if (lunarisAppMessenger == null) return;
             setControllerState("error_on_refresh_state");
             lunarisAppMessenger.notifyOfConnectionChanged(LunarisAppMessenger.ConnectionStateError);
             Log.e(TAG, "exception on refresh state");
@@ -171,12 +184,12 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
     }
 
     private final LunarisAppMessenger.CommandListener commandListener = (seatPosition, seatMode) -> {
-        if (heatsClient == null) {
-            Log.e(TAG, "Cannot execute command because heatsClient == null");
-            return;
-        }
-
         handler.post(() -> {
+            if (heatsClient == null) {
+                Log.e(TAG, "Cannot execute command because heatsClient == null");
+                return;
+            }
+
             Log.d(TAG, "Changing " + seatPosition + " to " + seatMode);
             try {
                 heatsClient.setMode(
@@ -201,10 +214,31 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
-            lunarisAppMessenger.onDisconnect();
-            lunarisAppMessenger = null;
-            Log.d(TAG, "lunarisapp is disconnected, reconnecting in 3s");
-            handler.postDelayed(() -> connectToLunarisApp(), 3000);
+            handler.post(() -> {
+                handler.removeCallbacksAndMessages(null);
+                if (espSearch != null) espSearch.stopScan();
+                if (lunarisAppMessenger != null) {
+                    lunarisAppMessenger.onDisconnect();
+                    lunarisAppMessenger = null;
+                }
+                setControllerState("connecting_lapp");
+            });
+            Log.d(TAG, "lunarisapp onServiceDisconnected, clearing state and wait reconnect");
+        }
+
+        @Override
+        public void onNullBinding(ComponentName name) {
+            Log.w(TAG, "connectToLunarisApp call onNullBinding ??? reconnecting in 5s");
+            handler.postDelayed(() -> connectToLunarisApp(), 5000);
+        }
+
+        @Override
+        public void onBindingDied(ComponentName name) {
+            new Handler(handlerThread.getLooper()).post(() -> {
+                stop(false);
+                handler.postDelayed(() -> connectToLunarisApp(), 5000);
+            });
+            Log.d(TAG, "lunarisapp onBindingDied, reconnecting in 5s");
         }
     };
 
@@ -218,10 +252,14 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
                 "ru.mark99.carapp",
                 "ru.mark99.carapp.ExternalHeatBoardService"
         ));
-        var bind = MainService.context.bindService(intent, lunarisAppConnection, Context.BIND_AUTO_CREATE);
-        Log.d(TAG, "bind lunarisapp = " + bind);
 
-        if (!bind) {
+        if (isBound)
+            MainService.context.unbindService(lunarisAppConnection);
+        var bound = MainService.context.bindService(intent, lunarisAppConnection, Context.BIND_AUTO_CREATE);
+        isBound = true;
+        Log.d(TAG, "bind lunarisapp = " + bound);
+
+        if (!bound) {
             Log.d(TAG, "next connect try in 3sec");
             handler.postDelayed(this::connectToLunarisApp, 3000);
         }
@@ -229,6 +267,7 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
 
     @Override
     public void onDeviceFound(String ipAddress) {
+        if (lunarisAppMessenger == null) return;
         host = ipAddress;
         setControllerState("pulling_first_state");
         handler.post(this::loadFirstState);
@@ -236,12 +275,14 @@ public class HeatBoardController implements ESPSearch.OnDeviceFoundListener {
 
     @Override
     public void onScanFinished(String errorMessage) {
+        if (lunarisAppMessenger == null) return;
         setControllerState("board_not_found");
         handler.postDelayed(this::searchEsp, 15000);
     }
 
     @Override
     public void onScanError(String message) {
+        if (lunarisAppMessenger == null) return;
         setControllerState("board_not_found");
         handler.postDelayed(this::searchEsp, 15000);
     }

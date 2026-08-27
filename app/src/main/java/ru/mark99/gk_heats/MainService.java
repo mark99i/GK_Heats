@@ -22,7 +22,6 @@ public class MainService extends Service {
     private static final String TAG = "GKH_MainService";
 
     public static MainService context;
-    public Handler handler;
 
     public HeatBoardController board1;
     public HeatBoardController board2;
@@ -35,7 +34,6 @@ public class MainService extends Service {
         super.onCreate();
         context = this;
         Log.d(TAG, "service started");
-        handler = new Handler(Looper.getMainLooper());
 
         startForeground(1002, Utils.getForegroundNotification(this));
 
@@ -47,20 +45,17 @@ public class MainService extends Service {
     }
 
     public void onConfigurationChanged() {
-        handler.post(() -> {
-            Log.d(TAG, "onConfigurationChanged, reloading board config");
-            board1.reloadConfig();
-            board2.reloadConfig();
-        });
+        Log.d(TAG, "onConfigurationChanged, reloading board config");
+        board1.handler.post(() -> board1.reloadConfig());
+        board2.handler.post(() -> board2.reloadConfig());
     }
 
     @Override
     public void onDestroy() {
         Log.d(TAG, "service destroy");
-        board1.stop();
-        board2.stop();
+        board1.stop(true);
+        board2.stop(true);
         stopForeground(Service.STOP_FOREGROUND_REMOVE);
-        handler.removeCallbacksAndMessages(null);
         context = null;
         super.onDestroy();
     }

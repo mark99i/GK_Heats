@@ -14,6 +14,7 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 
 public class GKClient {
+    private final static String TAG = "GKH_Client";
     private static final long TIMEOUT_MS = 1000L;
 
     private static final RequestBody EMPTY_BODY = RequestBody.create(new byte[0], null);
@@ -32,6 +33,7 @@ public class GKClient {
                         .header("Authorization", credentials)
                         .build()))
                 .build();
+        Log.d(TAG, "init() for " + host);
     }
 
     public StatusResponse fetchStatus() throws IOException {
@@ -44,6 +46,9 @@ public class GKClient {
             final ResponseBody body = response.body();
             final var b = body.bytes();
             final var state = new StatusResponse();
+            if (b.length < 3) {
+                throw new IOException("Cannot decode value: b.length < 3");
+            }
             state.left = convStateInt(b[0] - 48);
             // b[1] delimiter
             state.right = convStateInt(b[2] - 48);

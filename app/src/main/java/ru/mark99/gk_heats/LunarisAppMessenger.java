@@ -22,7 +22,7 @@ public class LunarisAppMessenger extends Handler {
     public final static int CommandTXNotifyOfHeatStateChanged = 10001;
     public final static int CommandRXChangeSeatHeat = 10002;
     public final static int CommandTXNotifyOfConnectionChanged = 10003;
-    public final static int CommandRXRefreshLastStateNow = 10004;
+    public final static int CommandTXClientDisconnected = 10010;
 
     public final static int SeatPositionLeft = 1;
     public final static int SeatPositionRight = 4;
@@ -43,7 +43,6 @@ public class LunarisAppMessenger extends Handler {
     private HandlerThread handlerThread;
     private Messenger messenger;
     private CommandListener commandListener;
-    private Message lastStateMessage;
 
     public static LunarisAppMessenger build(IBinder service, CommandListener commandListener, int row) {
         var ht = new HandlerThread("LunarisAppMessenger");
@@ -73,7 +72,6 @@ public class LunarisAppMessenger extends Handler {
         var message = new Message();
         message.what = CommandTXNotifyOfHeatStateChanged;
         message.setData(payload);
-        lastStateMessage = message;
         try {
             messenger.send(message);
             return true;
@@ -93,7 +91,6 @@ public class LunarisAppMessenger extends Handler {
         var message = new Message();
         message.what = CommandTXNotifyOfConnectionChanged;
         message.setData(payload);
-        lastStateMessage = message;
         try {
             messenger.send(message);
             return true;
@@ -153,10 +150,17 @@ public class LunarisAppMessenger extends Handler {
     }
 
     public void onDisconnect() {
+        try {
+            var message = new Message();
+            message.what = CommandTXClientDisconnected;
+            messenger.send(message);
+        } catch (RemoteException ignored) {}
+
         removeCallbacksAndMessages(null);
         handlerThread.quitSafely();
     }
 
+    @SuppressWarnings("SwitchStatementWithTooFewBranches")
     @Override
     public void handleMessage(@NonNull Message msg) {
         switch (msg.what) {
@@ -171,11 +175,6 @@ public class LunarisAppMessenger extends Handler {
                     );
                 } else {
                     Log.e(TAG, "commandListener == null, event dropped");
-                }
-            }
-            case CommandRXRefreshLastStateNow -> {
-                if (lastStateMessage != null) {
-                    try {messenger.send(lastStateMessage);} catch (RemoteException ignored) {}
                 }
             }
             default -> Log.e(TAG, "Unknown event received: " + msg.what);
