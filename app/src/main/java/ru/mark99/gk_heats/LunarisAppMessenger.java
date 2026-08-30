@@ -106,7 +106,12 @@ public class LunarisAppMessenger extends Handler {
 
     private void sendHello(int row) {
         Bundle bundle = new Bundle();
-        bundle.putString("row", row == 1 ? "first" : "second");
+        var lappRow = switch (row) {
+            case 1 -> "first";
+            case 2 -> "second";
+            default -> "both";
+        };
+        bundle.putString("row", lappRow);
 
         var message = new Message();
         message.what = CommandTXHello;
